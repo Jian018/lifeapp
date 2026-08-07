@@ -63,7 +63,7 @@ Public viewing never requires a code. A protected action opens the four-cell man
 6. Refreshing the page deletes the management cookie, so the next mutation requires the code again.
 7. The code is never stored in client JavaScript, HTML, local/session storage, cookies, the database or a `NEXT_PUBLIC_` variable.
 
-The localhost rate limiter is process-local. Use a shared durable limiter before running multiple production instances.
+Local JSON mode uses an in-memory limiter. Supabase mode stores only a server-keyed hash of the client address and shares the five-attempt/five-minute lock across Vercel instances.
 
 ## Lifecycle model
 
@@ -195,7 +195,7 @@ npx tsc --noEmit
 npm run build
 ```
 
-The 73 automated tests cover authentication, expiry, lockout, refresh locking, Singapore midnight and leap years, derived target dates, carryover accumulation and reversal, once-only behavior effects, ENERGIZED sum/clamping/stages, settings persistence, historical task targets in both backends, configurable lifecycle rules, real exports, protected resets, image-schema privacy and server-side write protection.
+The 75 automated tests cover authentication, expiry, durable lockout, refresh locking, Singapore midnight and leap years, derived target dates, carryover accumulation and reversal, once-only behavior effects, ENERGIZED sum/clamping/stages, settings persistence, historical task targets in both backends, configurable lifecycle rules, real exports, protected resets, image-schema privacy and server-side write protection.
 
 ## PWA
 
@@ -232,6 +232,6 @@ Import the repository into Vercel and add all production environment variables. 
 
 - Local JSON mode targets one Next.js process; hosted deployments must use `DATA_BACKEND=supabase`.
 - OpenAI analysis is simulated until a key is supplied.
-- The process-local failed-attempt limiter resets when the server restarts.
+- The failed-attempt limiter resets on restart only in local JSON mode; Supabase mode is durable.
 - Changing language translates the primary navigation and page copy; some secondary data labels remain English.
 - Calorie estimates are informational, not medical advice or precise measurement.

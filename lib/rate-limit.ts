@@ -1,4 +1,5 @@
 type Attempt = { failures: number; lockUntil: number; lastSeen: number };
+type AttemptState = { locked: boolean; retryAfterSeconds: number; failures: number };
 const attempts = new Map<string, Attempt>();
 const MAX_FAILURES = 5;
 const LOCK_MS = 5 * 60 * 1000;
@@ -21,3 +22,25 @@ export function recordPinFailure(key: string, now = Date.now()) {
 
 export function clearPinFailures(key: string) { attempts.delete(key); }
 export function resetRateLimitsForTests() { attempts.clear(); }
+
+async function supabaseRpc(name: string, key: string): Promise<AttemptState | null> {
+  const { createServiceRoleClient } = await import("@/lib/supabase/server");
+  const { data, error } = await createServiceRoleClient().rpc(name, { p_client_key: key });
+  if (error) throw new Error(`Rate-limit database error: ${error.message}`);
+  return data as AttemptState | null;
+}
+
+export async function getPinAttemptStateStored(key: string) {
+  if (process.env.DATA_BACKEND !== "supabase") return getPinAttemptState(key);
+  return (await supabaseRpc("get_admin_pin_attempt_state", key)) ?? { locked: false, retryAfterSeconds: 0, failures: 0 };
+}
+
+export async function recordPinFailureStored(key: string) {
+  if (process.env.DATA_BACKEND !== "supabase") return recordPinFailure(key);
+  return (await supabaseRpc("record_admin_pin_failure", key)) ?? { locked: false, retryAfterSeconds: 0, failures: 0 };
+}
+
+export async function clearPinFailuresStored(key: string) {
+  if (process.env.DATA_BACKEND !== "supabase") { clearPinFailures(key); return; }
+  await supabaseRpc("clear_admin_pin_failures", key);
+}

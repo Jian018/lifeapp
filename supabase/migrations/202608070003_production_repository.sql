@@ -1,6 +1,60 @@
 -- Production repository functions for the hosted Supabase backend.
 -- All functions are service-role only; public/anon retain SELECT access only.
 
+create table if not exists public.admin_pin_attempts (
+  client_key text primary key,
+  failures integer not null default 0 check (failures >= 0),
+  lock_until timestamptz,
+  last_seen timestamptz not null default now()
+);
+alter table public.admin_pin_attempts enable row level security;
+revoke all on public.admin_pin_attempts from public, anon, authenticated;
+grant all on public.admin_pin_attempts to service_role;
+
+create or replace function public.get_admin_pin_attempt_state(p_client_key text)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_attempt public.admin_pin_attempts%rowtype; v_retry integer;
+begin
+  select * into v_attempt from public.admin_pin_attempts where client_key = p_client_key;
+  if not found then return jsonb_build_object('locked', false, 'retryAfterSeconds', 0, 'failures', 0); end if;
+  if v_attempt.lock_until is not null and v_attempt.lock_until > now() then
+    v_retry := greatest(1, ceil(extract(epoch from (v_attempt.lock_until - now())))::integer);
+    return jsonb_build_object('locked', true, 'retryAfterSeconds', v_retry, 'failures', v_attempt.failures);
+  end if;
+  if v_attempt.last_seen < now() - interval '5 minutes' then
+    delete from public.admin_pin_attempts where client_key = p_client_key;
+    return jsonb_build_object('locked', false, 'retryAfterSeconds', 0, 'failures', 0);
+  end if;
+  return jsonb_build_object('locked', false, 'retryAfterSeconds', 0, 'failures', v_attempt.failures);
+end;
+$$;
+
+create or replace function public.record_admin_pin_failure(p_client_key text)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_attempt public.admin_pin_attempts%rowtype; v_failures integer; v_lock_until timestamptz; v_retry integer;
+begin
+  perform pg_advisory_xact_lock(hashtextextended('pin:' || p_client_key, 0));
+  select * into v_attempt from public.admin_pin_attempts where client_key = p_client_key for update;
+  if not found or v_attempt.last_seen < now() - interval '5 minutes' then v_failures := 1;
+  else v_failures := v_attempt.failures + 1;
+  end if;
+  v_lock_until := case when v_failures >= 5 then now() + interval '5 minutes' else null end;
+  insert into public.admin_pin_attempts (client_key, failures, lock_until, last_seen)
+  values (p_client_key, v_failures, v_lock_until, now())
+  on conflict (client_key) do update set failures = excluded.failures, lock_until = excluded.lock_until, last_seen = excluded.last_seen;
+  v_retry := case when v_lock_until is null then 0 else greatest(1, ceil(extract(epoch from (v_lock_until - now())))::integer) end;
+  return jsonb_build_object('locked', v_lock_until is not null, 'retryAfterSeconds', v_retry, 'failures', v_failures);
+end;
+$$;
+
+create or replace function public.clear_admin_pin_failures(p_client_key text)
+returns void
+language sql security definer set search_path = public as $$
+  delete from public.admin_pin_attempts where client_key = p_client_key;
+$$;
+
 -- Preserve a daily record's historical base target. Only carried/total values
 -- are recalculated when an existing record is revisited.
 create or replace function public.ensure_daily_task_record(p_task_definition_id uuid, p_record_date date)
@@ -188,6 +242,7 @@ begin
   delete from public.lifecycle_adjustments;
   delete from public.food_entries;
   delete from public.smoking_entries;
+  delete from public.admin_pin_attempts;
   delete from public.task_definitions;
 
   update public.system_settings set birth_date = date '2003-01-08', target_date = date '2063-01-08', timezone = 'Asia/Singapore',

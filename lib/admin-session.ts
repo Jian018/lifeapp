@@ -47,3 +47,7 @@ export function securePinMatches(candidate: string) {
   if (!actual || !/^\d{4}$/.test(actual) || !/^\d{4}$/.test(candidate)) return false;
   return timingSafeEqual(Buffer.from(candidate), Buffer.from(actual));
 }
+
+export function rateLimitKey(clientAddress: string) {
+  return createHmac("sha256", secret()).update(`pin-rate-limit:${clientAddress}`).digest("hex");
+}

@@ -55,6 +55,16 @@ describe("security and privacy contract", () => {
     expect(productionMigration).toContain("grant execute on all functions in schema public to service_role");
   });
 
+  it("uses a durable Supabase lockout without storing the raw PIN or IP", () => {
+    expect(productionMigration).toContain("create table if not exists public.admin_pin_attempts");
+    expect(productionMigration).toContain("record_admin_pin_failure");
+    const rateLimitTable = productionMigration.match(/create table if not exists public\.admin_pin_attempts \([\s\S]+?\n\);/)?.[0] ?? "";
+    expect(rateLimitTable).not.toMatch(/\b(pin|ip)\b/i);
+    const route = readFileSync(path.join(process.cwd(), "app/api/admin/verify-pin/route.ts"), "utf8");
+    expect(route).toContain("rateLimitKey(ip)");
+    expect(route).toContain("getPinAttemptStateStored");
+  });
+
   it("routes production API persistence through the backend repository", () => {
     const routeFiles = [
       "app/api/tasks/complete/route.ts", "app/api/food/create/route.ts", "app/api/smoking/create/route.ts",

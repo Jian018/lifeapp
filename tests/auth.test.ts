@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createAdminToken, securePinMatches, verifyAdminToken } from "@/lib/admin-session";
+import { createAdminToken, rateLimitKey, securePinMatches, verifyAdminToken } from "@/lib/admin-session";
 import { clearPinFailures, getPinAttemptState, recordPinFailure, resetRateLimitsForTests } from "@/lib/rate-limit";
 
 describe("management authorization", () => {
@@ -41,5 +41,11 @@ describe("management authorization", () => {
   it("clears failures after a successful verification", () => {
     recordPinFailure("client"); clearPinFailures("client");
     expect(getPinAttemptState("client").failures).toBe(0);
+  });
+
+  it("hashes the client address before durable rate-limit storage", () => {
+    const key = rateLimitKey("203.0.113.42");
+    expect(key).toHaveLength(64);
+    expect(key).not.toContain("203.0.113.42");
   });
 });
