@@ -12,6 +12,9 @@ export async function GET(request: NextRequest) {
     const db = await readDatabase();
     const date = request.nextUrl.searchParams.get("date") ?? dateInTimezone(new Date(), db.settings.timezone);
     if (!isoDateSchema.safeParse(date).success) throw new ApiError(400, "Invalid date.", "VALIDATION_ERROR");
-    return NextResponse.json(calorieStats(db, date));
+    const start = request.nextUrl.searchParams.get("start") ?? date;
+    const end = request.nextUrl.searchParams.get("end") ?? date;
+    if (!isoDateSchema.safeParse(start).success || !isoDateSchema.safeParse(end).success) throw new ApiError(400, "Invalid date range.", "VALIDATION_ERROR");
+    return NextResponse.json(calorieStats(db, date, start, end));
   } catch (error) { return apiError(error); }
 }

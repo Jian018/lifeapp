@@ -13,6 +13,10 @@ type LifeData = {
   settings: SystemSettings;
   timeline: { totalDays: number; livedDays: number; remainingDays: number; elapsedPercent: number; remainingPercent: number };
   energized: number;
+  naturalDaysRemaining: number;
+  effectiveDaysRemaining: number;
+  daysPerPercent: number;
+  latestImpact: { delta: number; days: number; effectId: string; isFresh: boolean } | null;
   stage: { emoji: string; label: string };
   recent: LifecycleEffect[];
 };
@@ -27,6 +31,7 @@ export default function LifecyclePage() {
 
   const dateLabel = (date: string) => new Intl.DateTimeFormat("en-SG", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`)).toUpperCase();
   const activityTime = (effect: LifecycleEffect) => new Intl.DateTimeFormat("en-SG", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: data.settings.timezone }).format(new Date(effect.createdAt));
+  const impact = data.latestImpact?.isFresh ? data.latestImpact : null;
   const categories = [
     { key: "exploreWorldScore" as const, delta: "worldDelta" as const, label: text("EXPLORE WORLD", "探索世界"), icon: Globe2, color: "bg-sky", textColor: "text-sky" },
     { key: "relationshipScore" as const, delta: "relationshipDelta" as const, label: text("RELATIONSHIP", "感情关系"), icon: HeartHandshake, color: "bg-coral", textColor: "text-coral" },
@@ -37,12 +42,12 @@ export default function LifecyclePage() {
     <header className="mb-7 md:mb-10"><p className="eyebrow mb-3">{text("Time & direction", "时间与方向")}</p><h1 className="display-title">{text("Lifecycle", "生命周期")}</h1><p className="mt-3 max-w-xl text-sm leading-6 text-zinc-500">{text("The timeline measures time. ENERGIZED measures the sum of your three life directions.", "时间线衡量时间，ENERGIZED 是三个生活方向的实时总和。")}</p></header>
 
     <section className="mb-5">
-      <Card className="overflow-hidden"><div className="border-b border-line p-5 md:p-6"><p className="eyebrow">LIFE TIMELINE</p></div><div className="grid gap-px bg-line sm:grid-cols-2 xl:grid-cols-5">
+      <Card className="overflow-hidden"><div className="border-b border-line p-5 md:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><p className="eyebrow">LIFE TIMELINE</p><p className="text-xs text-zinc-600">1% Energized currently equals approximately {Math.round(data.daysPerPercent).toLocaleString()} days</p></div></div><div className="grid gap-px bg-line sm:grid-cols-2 xl:grid-cols-5">
         <div className="bg-panel p-5 md:p-6"><CalendarDays size={18} className="mb-5 text-sky" /><p className="eyebrow">Born</p><p className="mt-2 font-display text-lg font-bold">{dateLabel(data.settings.birthDate)}</p></div>
         <div className="bg-panel p-5 md:p-6"><CalendarDays size={18} className="mb-5 text-coral" /><p className="eyebrow">Target</p><p className="mt-2 font-display text-lg font-bold">{dateLabel(data.settings.targetDate)}</p></div>
-        <div className="bg-panel p-5 md:p-6"><Clock3 size={18} className="mb-5 text-zinc-500" /><p className="eyebrow">Days Lived</p><p className="mt-2 font-display text-3xl font-bold">{data.timeline.livedDays.toLocaleString()}</p></div>
-        <div className="bg-panel p-5 md:p-6"><Clock3 size={18} className="mb-5 text-acid" /><p className="eyebrow">Days Remaining</p><p className="mt-2 font-display text-3xl font-bold">{data.timeline.remainingDays.toLocaleString()}</p></div>
-        <div className="bg-panel p-5 md:p-6"><p className="eyebrow">Time Used</p><p className="mt-7 font-display text-3xl font-bold">{formatNumber(data.timeline.elapsedPercent)}%</p><div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[.06]"><div className="h-full rounded-full bg-zinc-500" style={{ width: `${Math.min(100, data.timeline.elapsedPercent)}%` }} /></div></div>
+        <div className="bg-panel p-5 md:p-6"><Clock3 size={18} className="mb-5 text-zinc-500" /><p className="eyebrow">Natural Time Remaining</p><p className="mt-2 font-display text-3xl font-bold">{data.naturalDaysRemaining.toLocaleString()}</p><p className="mt-1 text-[10px] uppercase tracking-[.12em] text-zinc-600">days</p></div>
+        <div className="bg-panel p-5 md:p-6"><p className="eyebrow">ENERGIZED</p><div className="mt-5 flex items-end gap-2"><span className="text-2xl">{data.stage.emoji}</span><p className="font-display text-3xl font-bold">{formatNumber(data.energized)}%</p></div></div>
+        <div className="relative bg-panel p-5 md:p-6"><Clock3 size={18} className="mb-5 text-acid" /><p className="eyebrow">Effective Days Remaining</p><p className="mt-2 font-display text-3xl font-bold text-acid">{data.effectiveDaysRemaining.toLocaleString()}</p><p className="mt-1 text-[10px] uppercase tracking-[.12em] text-zinc-600">days · lifestyle-adjusted</p>{impact && <div className="life-impact absolute inset-x-4 bottom-4 rounded-xl border border-acid/20 bg-[#0b0d10] px-3 py-2 text-xs"><span className={impact.days >= 0 ? "text-acid" : "text-coral"}>{impact.delta >= 0 ? "↑" : "↓"}{Math.abs(impact.delta)}% · {impact.days >= 0 ? "+" : ""}{impact.days.toLocaleString()} effective days</span></div>}</div>
       </div></Card>
     </section>
 

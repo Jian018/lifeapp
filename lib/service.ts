@@ -1,5 +1,5 @@
-import type { DailyTaskRecord, FoodEntry, LifecycleCategory, LifecycleEffect, LocalDatabase, SmokingEntry, SystemSettings, TaskDefinition } from "@/lib/types";
-import { addDays, dateInTimezone, differenceInCalendarDays, lifecycleTimeline, monthBounds, startOfWeekMonday, targetDateFromAge } from "@/lib/date";
+import type { ActivityEntry, DailyTaskRecord, FoodEntry, LifecycleCategory, LifecycleEffect, LocalDatabase, SmokingEntry, SystemSettings, TaskDefinition } from "@/lib/types";
+import { addDays, dateInTimezone, daysPerEnergizedPercent, differenceInCalendarDays, effectiveDaysRemaining, lifecycleTimeline, monthBounds, startOfWeekMonday, targetDateFromAge } from "@/lib/date";
 import { applyScoreDelta, energizedScore, heartStage } from "@/lib/lifecycle";
 import { clamp } from "@/lib/utils";
 import { ApiError } from "@/lib/api";
@@ -71,7 +71,9 @@ export function taskDayView(db: LocalDatabase, date: string) {
   const total = tasks.length;
   const completionRate = total ? Math.round((completed / total) * 100) : 0;
   const today = todayFor(db);
-  return { date, tasks, summary: { total, completed, pending: total - completed, carried, completionRate, incompleteRate: 100 - completionRate }, isFuture: date > today, today };
+  const activities = db.activityEntries.filter((entry) => entry.activityDate === date).sort((a, b) => a.activityTime.localeCompare(b.activityTime));
+  const activityBurn = activities.reduce((sum, entry) => sum + entry.confirmedCaloriesBurned, 0);
+  return { date, tasks, activities, activityBurn, summary: { total, completed, pending: total - completed, carried, completionRate, incompleteRate: 100 - completionRate }, isFuture: date > today, today };
 }
 
 export function taskCalendar(db: LocalDatabase, center: string, range = db.settings.mobileDateRange) {
@@ -151,6 +153,26 @@ export function deleteFood(db: LocalDatabase, entryId: string) {
   return entry;
 }
 
+export function createActivity(db: LocalDatabase, input: Omit<ActivityEntry, "id" | "createdAt" | "updatedAt">) {
+  const now = nowIso();
+  const entry: ActivityEntry = { ...input, id: id("activity"), createdAt: now, updatedAt: now };
+  db.activityEntries.push(entry);
+  return entry;
+}
+
+export function updateActivity(db: LocalDatabase, input: Pick<ActivityEntry, "id" | "activityDate" | "activityTime" | "activityName" | "durationMinutes" | "confirmedCaloriesBurned">) {
+  const entry = db.activityEntries.find((item) => item.id === input.id);
+  if (!entry) throw new ApiError(404, "Activity entry not found.", "ACTIVITY_NOT_FOUND");
+  Object.assign(entry, input, { id: entry.id, updatedAt: nowIso() });
+  return entry;
+}
+
+export function deleteActivity(db: LocalDatabase, entryId: string) {
+  const index = db.activityEntries.findIndex((entry) => entry.id === entryId);
+  if (index < 0) throw new ApiError(404, "Activity entry not found.", "ACTIVITY_NOT_FOUND");
+  return db.activityEntries.splice(index, 1)[0];
+}
+
 export function createSmoking(db: LocalDatabase, input: Pick<SmokingEntry, "entryDate" | "entryTime"> & { requestId: string }) {
   const existing = db.smokingEntries.find((entry) => entry.id === input.requestId);
   if (existing) return { entry: existing, created: false };
@@ -181,36 +203,77 @@ export function lifecycleView(db: LocalDatabase) {
   const timeline = lifecycleTimeline(db.settings.birthDate, db.settings.targetDate, today);
   const energized = energizedScore(db.settings);
   const recent = db.lifecycleEffects.filter((effect) => !effect.isReverted).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 8);
-  return { settings: db.settings, timeline, energized, stage: heartStage(energized), recent };
+  const daysPerPercent = daysPerEnergizedPercent(timeline.remainingDays);
+  const latest = recent[0];
+  const latestDelta = latest ? latest.worldDelta + latest.relationshipDelta + latest.familyDelta : 0;
+  return {
+    settings: db.settings,
+    timeline,
+    naturalDaysRemaining: timeline.remainingDays,
+    effectiveDaysRemaining: effectiveDaysRemaining(timeline.remainingDays, energized),
+    daysPerPercent,
+    energized,
+    stage: heartStage(energized),
+    recent,
+    latestImpact: latest ? { delta: latestDelta, days: Math.round(daysPerPercent * latestDelta), effectId: latest.id, isFresh: Date.now() - new Date(latest.createdAt).getTime() < 15_000 } : null,
+  };
 }
 
 function dateSeries(start: string, end: string) {
   const days = differenceInCalendarDays(end, start);
+  if (days < 0 || days > 366) throw new ApiError(400, "Choose a date range of 366 days or fewer.", "INVALID_DATE_RANGE");
   return Array.from({ length: days + 1 }, (_, index) => addDays(start, index));
 }
 
-export function calorieStats(db: LocalDatabase, anchor: string) {
+function caloriePeriod(db: LocalDatabase, start: string, end: string) {
+  const foodEntries = db.foodEntries.filter((entry) => entry.entryDate >= start && entry.entryDate <= end).sort((a, b) => `${b.entryDate}${b.entryTime}`.localeCompare(`${a.entryDate}${a.entryTime}`));
+  const activityEntries = db.activityEntries.filter((entry) => entry.activityDate >= start && entry.activityDate <= end).sort((a, b) => `${b.activityDate}${b.activityTime}`.localeCompare(`${a.activityDate}${a.activityTime}`));
+  const series = dateSeries(start, end).map((date) => {
+    const foods = db.foodEntries.filter((entry) => entry.entryDate === date);
+    const activities = db.activityEntries.filter((entry) => entry.activityDate === date);
+    const intake = foods.reduce((sum, entry) => sum + entry.confirmedCalories, 0);
+    const burned = activities.reduce((sum, entry) => sum + entry.confirmedCaloriesBurned, 0);
+    return { date, intake, burned, net: intake - burned, calories: foods.length ? intake : null, meals: foods.length, activities: activities.length, desserts: foods.filter((entry) => entry.isDessert).length };
+  });
+  const totalIntake = series.reduce((sum, day) => sum + day.intake, 0);
+  const totalBurned = series.reduce((sum, day) => sum + day.burned, 0);
+  const recordedFoodDays = series.filter((day) => day.meals > 0).length;
+  const recordedActivityDays = series.filter((day) => day.activities > 0).length;
+  const highestIntake = [...series].filter((day) => day.meals > 0).sort((a, b) => b.intake - a.intake)[0] ?? null;
+  const lowestIntake = [...series].filter((day) => day.meals > 0).sort((a, b) => a.intake - b.intake)[0] ?? null;
+  const highestBurn = [...series].filter((day) => day.activities > 0).sort((a, b) => b.burned - a.burned)[0] ?? null;
+  return {
+    start, end, series, foodEntries, activityEntries,
+    totalIntake, totalBurned, netCalories: totalIntake - totalBurned,
+    averageDailyIntake: recordedFoodDays ? Math.round(totalIntake / recordedFoodDays) : null,
+    averageDailyBurn: recordedActivityDays ? Math.round(totalBurned / recordedActivityDays) : null,
+    highestIntake, lowestIntake, highestBurn, recordedFoodDays, recordedActivityDays,
+    meals: series.reduce((sum, day) => sum + day.meals, 0),
+    activities: series.reduce((sum, day) => sum + day.activities, 0),
+    desserts: series.reduce((sum, day) => sum + day.desserts, 0),
+    // Backward-compatible aliases used by older clients.
+    total: totalIntake,
+    average: recordedFoodDays ? Math.round(totalIntake / recordedFoodDays) : null,
+    highest: highestIntake,
+    lowest: lowestIntake,
+    recordedDays: recordedFoodDays,
+  };
+}
+
+export function calorieStats(db: LocalDatabase, anchor: string, customStart = anchor, customEnd = anchor) {
   const todayEntries = db.foodEntries.filter((entry) => entry.entryDate === anchor).sort((a, b) => a.entryTime.localeCompare(b.entryTime));
+  const todayActivities = db.activityEntries.filter((entry) => entry.activityDate === anchor).sort((a, b) => a.activityTime.localeCompare(b.activityTime));
   const byMeal = (["breakfast", "lunch", "dinner", "snack"] as const).map((type) => ({ type, calories: todayEntries.filter((entry) => entry.mealType === type).reduce((sum, entry) => sum + entry.confirmedCalories, 0) }));
   const weekStart = startOfWeekMonday(anchor); const weekEnd = addDays(weekStart, 6);
   const month = monthBounds(anchor);
-  const aggregate = (dates: string[]) => dates.map((date) => {
-    const entries = db.foodEntries.filter((entry) => entry.entryDate === date);
-    return { date, calories: entries.length ? entries.reduce((sum, entry) => sum + entry.confirmedCalories, 0) : null, meals: entries.length, desserts: entries.filter((entry) => entry.isDessert).length };
-  });
-  const summarize = (series: ReturnType<typeof aggregate>) => {
-    const recorded = series.filter((day) => day.calories !== null);
-    const total = recorded.reduce((sum, day) => sum + (day.calories ?? 0), 0);
-    const sorted = [...recorded].sort((a, b) => (b.calories ?? 0) - (a.calories ?? 0));
-    return { total, average: recorded.length ? Math.round(total / recorded.length) : null, highest: sorted[0] ?? null, lowest: sorted.at(-1) ?? null, recordedDays: recorded.length, meals: series.reduce((sum, day) => sum + day.meals, 0), desserts: series.reduce((sum, day) => sum + day.desserts, 0) };
-  };
-  const weekSeries = aggregate(dateSeries(weekStart, weekEnd));
-  const monthSeries = aggregate(dateSeries(month.start, month.end));
+  const intake = todayEntries.reduce((sum, entry) => sum + entry.confirmedCalories, 0);
+  const burned = todayActivities.reduce((sum, entry) => sum + entry.confirmedCaloriesBurned, 0);
   return {
     anchor,
-    today: { entries: todayEntries, byMeal, total: todayEntries.reduce((sum, entry) => sum + entry.confirmedCalories, 0), meals: todayEntries.length, desserts: todayEntries.filter((entry) => entry.isDessert).length },
-    week: { start: weekStart, end: weekEnd, series: weekSeries, ...summarize(weekSeries) },
-    month: { start: month.start, end: month.end, series: monthSeries, ...summarize(monthSeries) },
+    today: { entries: todayEntries, activities: todayActivities, byMeal, total: intake, intake, burned, net: intake - burned, meals: todayEntries.length, desserts: todayEntries.filter((entry) => entry.isDessert).length },
+    week: caloriePeriod(db, weekStart, weekEnd),
+    month: caloriePeriod(db, month.start, month.end),
+    range: caloriePeriod(db, customStart, customEnd),
     smokingEntries: db.smokingEntries.sort((a, b) => `${b.entryDate}${b.entryTime}`.localeCompare(`${a.entryDate}${a.entryTime}`)),
   };
 }
@@ -220,7 +283,12 @@ export function dashboardView(db: LocalDatabase) {
   const tasks = taskDayView(db, today);
   const lifecycle = lifecycleView(db);
   const calories = calorieStats(db, today).today;
-  return { today, tasks: tasks.summary, lifecycle: { remainingDays: lifecycle.timeline.remainingDays, energized: lifecycle.energized, stage: lifecycle.stage }, calories: { total: calories.total, meals: calories.meals, desserts: calories.desserts } };
+  return {
+    today,
+    tasks: tasks.summary,
+    lifecycle: { remainingDays: lifecycle.naturalDaysRemaining, naturalDaysRemaining: lifecycle.naturalDaysRemaining, effectiveDaysRemaining: lifecycle.effectiveDaysRemaining, energized: lifecycle.energized, stage: lifecycle.stage },
+    calories: { total: calories.total, intake: calories.intake, burned: calories.burned, net: calories.net, meals: calories.meals, desserts: calories.desserts },
+  };
 }
 
 export function publicSettingsView(db: LocalDatabase) {
@@ -255,7 +323,7 @@ export function updateLifecycleRules(db: LocalDatabase, input: Pick<SystemSettin
   return db.settings;
 }
 
-export function updateCalorieSettings(db: LocalDatabase, input: Pick<SystemSettings, "defaultMealType" | "aiFoodAnalysisEnabled" | "requireAiConfirmation">) {
+export function updateCalorieSettings(db: LocalDatabase, input: Pick<SystemSettings, "defaultMealType" | "aiFoodAnalysisEnabled" | "activityAiEnabled" | "bodyWeightKg" | "defaultCaloriesView" | "requireAiConfirmation">) {
   Object.assign(db.settings, input, { updatedAt: nowIso() });
   return db.settings;
 }

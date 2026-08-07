@@ -6,6 +6,8 @@ export type AppLanguage = "en" | "zh";
 export type DefaultMealType = MealType | "auto";
 export type DefaultLandingPage = "/" | "/tasks" | "/lifecycle" | "/calories";
 export type DesktopSidebarMode = "expanded" | "compact";
+export type DefaultCaloriesView = "today" | "week" | "month";
+export type ActivityIntensity = "light" | "moderate" | "vigorous" | "unknown";
 
 export type TaskDefinition = {
   id: string;
@@ -82,6 +84,35 @@ export type FoodEntry = {
   updatedAt: string;
 };
 
+export type ActivityAnalysisResult = {
+  activity_name: string;
+  duration_minutes: number;
+  intensity: ActivityIntensity;
+  estimated_calories_burned: number;
+  minimum_calories_burned: number;
+  maximum_calories_burned: number;
+  confidence: Confidence;
+  assumptions: string[];
+};
+
+export type ActivityEntry = {
+  id: string;
+  activityDate: string;
+  activityTime: string;
+  activityName: string;
+  durationMinutes: number;
+  intensity: ActivityIntensity;
+  confirmedCaloriesBurned: number;
+  aiEstimatedCaloriesBurned: number | null;
+  minimumCaloriesBurned: number | null;
+  maximumCaloriesBurned: number | null;
+  confidence: Confidence | null;
+  assumptions: string[];
+  source: "ai" | "manual";
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type SmokingEntry = {
   id: string;
   entryDate: string;
@@ -134,6 +165,9 @@ export type SystemSettings = {
   smokingFamilyDelta: number;
   defaultMealType: DefaultMealType;
   aiFoodAnalysisEnabled: boolean;
+  activityAiEnabled: boolean;
+  bodyWeightKg: number | null;
+  defaultCaloriesView: DefaultCaloriesView;
   requireAiConfirmation: boolean;
   defaultLandingPage: DefaultLandingPage;
   desktopSidebarMode: DesktopSidebarMode;
@@ -149,6 +183,7 @@ export type LocalDatabase = {
   dailyTaskRecords: DailyTaskRecord[];
   taskCarryovers: TaskCarryover[];
   foodEntries: FoodEntry[];
+  activityEntries: ActivityEntry[];
   smokingEntries: SmokingEntry[];
   lifecycleEffects: LifecycleEffect[];
   lifecycleAdjustments: LifecycleAdjustment[];

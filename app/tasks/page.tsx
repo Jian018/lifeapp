@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { addDays, dateInTimezone, formatLongDate, formatShortDate } from "@/lib/date";
 import { useApi, apiRequest } from "@/hooks/use-api";
 import { useAdmin } from "@/components/admin-gate";
@@ -8,17 +9,20 @@ import { ErrorState } from "@/components/error-state";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Check, ChevronLeft, ChevronRight, CircleDashed, Clock3, CornerDownRight, RotateCcw } from "lucide-react";
+import { Activity, Check, ChevronLeft, ChevronRight, CircleDashed, Clock3, CornerDownRight, Flame, Plus, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import type { DailyTaskRecord, TaskDefinition } from "@/lib/types";
+import type { ActivityEntry, DailyTaskRecord, TaskDefinition } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAppSettings } from "@/components/app-settings";
+import { ActivityEntryDialog } from "@/components/activity-entry-dialog";
 
 type TaskData = {
   date: string;
   today: string;
   isFuture: boolean;
   tasks: Array<{ definition: TaskDefinition; record: DailyTaskRecord }>;
+  activities: ActivityEntry[];
+  activityBurn: number;
   summary: { total: number; completed: number; pending: number; carried: number; completionRate: number; incompleteRate: number };
   calendar: Array<{ date: string; state: "complete" | "partial" | "warning" | "empty" }>;
 };
@@ -31,6 +35,7 @@ export default function TasksPage() {
   const url = useMemo(() => `/api/public/tasks?date=${date}`, [date]);
   const { data, loading, error, refetch } = useApi<TaskData>(url);
   const { requireAdmin } = useAdmin();
+  const [activityOpen, setActivityOpen] = useState(false);
 
   const mutate = (route: string, taskDefinitionId: string, success: string, confirm?: string) => requireAdmin(async () => {
     if (confirm && !window.confirm(confirm)) return;
@@ -66,7 +71,16 @@ export default function TasksPage() {
           </Card>;
         })}
       </section>
+      <section className="mt-5 grid gap-4 lg:grid-cols-[1.45fr_.75fr]">
+        <Card className="p-5 md:p-6">
+          <div className="flex items-center justify-between gap-4"><div><p className="eyebrow">Extra Activities</p><h2 className="mt-2 font-display text-xl font-bold">Completed movement</h2></div><Button size="sm" onClick={() => void requireAdmin(() => setActivityOpen(true))} disabled={data.isFuture}><Plus size={16} />Add Task</Button></div>
+          {data.activities.length ? <div className="mt-4 divide-y divide-line">{data.activities.map((entry) => <div key={entry.id} className="flex items-center justify-between gap-4 py-4"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky/10 text-sky"><Activity size={18} /></span><div><p className="font-display font-bold">{entry.activityName}</p><p className="mt-1 text-xs text-zinc-500">{entry.durationMinutes} minutes · {entry.intensity} · completed</p></div></div><div className="text-right"><p className="font-display text-lg font-bold">{entry.confirmedCaloriesBurned.toLocaleString()}</p><p className="text-[10px] uppercase tracking-[.12em] text-zinc-600">kcal burned</p></div></div>)}</div> : <div className="mt-4 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-zinc-600">No extra activities recorded for this date.</div>}
+          <p className="mt-4 text-xs leading-5 text-zinc-600">Extra activities are stored as completed exercise and never change the four-task completion reward.</p>
+        </Card>
+        <Link href={`/calories?date=${date}&view=activities`} className="group"><Card className="flex h-full min-h-48 flex-col p-5 transition-colors group-hover:border-sky/40 md:p-6"><div className="flex items-center justify-between"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky/10 text-sky"><Flame size={18} /></span><ChevronRight className="text-zinc-600 transition-transform group-hover:translate-x-1" /></div><div className="mt-auto pt-8"><p className="eyebrow">Today Activity Burn</p><p className="mt-2 font-display text-4xl font-bold">{data.activityBurn.toLocaleString()} <span className="text-sm text-zinc-600">kcal</span></p><p className="mt-2 text-xs text-zinc-600">Open Calories activities</p></div></Card></Link>
+      </section>
       {data.isFuture && <div className="mt-4 flex items-center gap-2 rounded-xl border border-line bg-white/[.02] p-4 text-sm text-zinc-500"><CircleDashed size={17} /> Future dates are view-only. Come back on the day to complete or carry tasks.</div>}
+      <ActivityEntryDialog key={`${date}-${activityOpen}`} open={activityOpen} onOpenChange={setActivityOpen} selectedDate={date} onSaved={refetch} />
     </div>
   );
 }

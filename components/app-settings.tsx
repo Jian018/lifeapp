@@ -19,6 +19,7 @@ export const defaultClientSettings: SystemSettings = {
   dessertWorldDelta: -1, dessertRelationshipDelta: -1, dessertFamilyDelta: -1,
   smokingWorldDelta: -1, smokingRelationshipDelta: -1, smokingFamilyDelta: -1,
   defaultMealType: "auto", aiFoodAnalysisEnabled: true, requireAiConfirmation: true,
+  activityAiEnabled: true, bodyWeightKg: null, defaultCaloriesView: "today",
   defaultLandingPage: "/", desktopSidebarMode: "expanded", mobileDateRange: 7,
   createdAt: now, updatedAt: now,
 };

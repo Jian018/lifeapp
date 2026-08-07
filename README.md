@@ -7,6 +7,9 @@ The app supports two backends: an atomic JSON datastore for localhost developmen
 ## Current product
 
 - Public dashboard, Daily Tasks, Lifecycle, Calories and Settings pages
+- Natural and ENERGIZED-adjusted effective days remaining
+- Extra activity logging with AI-assisted burned-calorie estimates
+- Intake, burned and net calorie statistics with date and range filters
 - No account, registration, email/password login or Supabase Auth
 - Server-verified four-digit management code for every mutation
 - Management authorization is locked again on every browser refresh
@@ -171,6 +174,7 @@ Run all migrations in order:
 supabase/migrations/202608070001_initial_schema.sql
 supabase/migrations/202608070002_app_settings_and_energized.sql
 supabase/migrations/202608070003_production_repository.sql
+supabase/migrations/202608070004_effective_life_and_activities.sql
 ```
 
 They include tables, constraints, singleton settings, public SELECT policies, denied anonymous writes and secret/service-role-only transaction functions. ENERGIZED is deliberately not a database column.

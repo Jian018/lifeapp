@@ -62,6 +62,16 @@ export function lifecycleTimeline(birthDate: string, targetDate: string, today: 
   return { totalDays, livedDays, remainingDays, elapsedPercent, remainingPercent };
 }
 
+export function effectiveDaysRemaining(naturalDaysRemaining: number, energized: number) {
+  const natural = Math.max(0, Math.round(naturalDaysRemaining));
+  const displayedEnergized = Math.max(0, Math.min(100, energized));
+  return Math.max(0, Math.min(natural, Math.round(natural * displayedEnergized / 100)));
+}
+
+export function daysPerEnergizedPercent(naturalDaysRemaining: number) {
+  return Math.max(0, naturalDaysRemaining) / 100;
+}
+
 export function startOfWeekMonday(date: string) {
   const parsed = parseDateOnly(date);
   const day = parsed.getUTCDay();

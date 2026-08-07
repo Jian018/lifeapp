@@ -107,6 +107,7 @@ describe("task definition history", () => {
   it("applies a new target to new dates without changing historical records", () => {
     const db = cleanDatabase();
     const task = db.taskDefinitions.find((definition) => definition.taskKey === "plank")!;
+    task.baseTarget = 3;
     const historicalDate = addDays(singaporeDate(), -1);
     completeTask(db, task.id, historicalDate);
     updateTaskDefinition(db, { ...task, baseTarget: 30 });

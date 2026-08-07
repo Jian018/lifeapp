@@ -40,6 +40,47 @@ export const foodEntrySchema = z.object({
 });
 
 export const foodUpdateSchema = foodEntrySchema.partial().extend({ id: idSchema });
+
+export const activityAnalysisSchema = z.object({
+  activity_name: z.string().trim().min(1).max(120),
+  duration_minutes: z.number().positive().max(1_440),
+  intensity: z.enum(["light", "moderate", "vigorous", "unknown"]),
+  estimated_calories_burned: z.number().min(0).max(20_000),
+  minimum_calories_burned: z.number().min(0).max(20_000),
+  maximum_calories_burned: z.number().min(0).max(20_000),
+  confidence: z.enum(["low", "medium", "high"]),
+  assumptions: z.array(z.string().max(240)).max(10),
+}).refine((value) => value.minimum_calories_burned <= value.estimated_calories_burned && value.estimated_calories_burned <= value.maximum_calories_burned, {
+  message: "Calorie estimate must be inside its range.",
+  path: ["estimated_calories_burned"],
+});
+
+export const activityAnalyzeInputSchema = z.object({
+  description: z.string().trim().min(2).max(300),
+});
+
+export const activityEntrySchema = z.object({
+  activityDate: isoDateSchema,
+  activityTime: timeSchema,
+  activityName: z.string().trim().min(1).max(120),
+  durationMinutes: z.coerce.number().positive().max(1_440),
+  intensity: z.enum(["light", "moderate", "vigorous", "unknown"]),
+  confirmedCaloriesBurned: z.coerce.number().min(0).max(20_000),
+  aiEstimatedCaloriesBurned: z.coerce.number().min(0).max(20_000).nullable().optional(),
+  minimumCaloriesBurned: z.coerce.number().min(0).max(20_000).nullable().optional(),
+  maximumCaloriesBurned: z.coerce.number().min(0).max(20_000).nullable().optional(),
+  confidence: z.enum(["low", "medium", "high"]).nullable().optional(),
+  assumptions: z.array(z.string().max(240)).max(10).default([]),
+  source: z.enum(["ai", "manual"]),
+});
+
+export const activityUpdateSchema = activityEntrySchema.pick({
+  activityDate: true,
+  activityTime: true,
+  activityName: true,
+  durationMinutes: true,
+  confirmedCaloriesBurned: true,
+}).extend({ id: idSchema });
 export const smokingCreateSchema = z.object({ entryDate: isoDateSchema, entryTime: timeSchema, requestId: z.string().uuid() });
 export const deleteSchema = z.object({ id: idSchema });
 export const lifecycleAdjustSchema = z.object({
@@ -84,6 +125,9 @@ export const lifecycleRulesSchema = z.object({
 export const calorieSettingsSchema = z.object({
   defaultMealType: z.enum(["breakfast", "lunch", "dinner", "snack", "auto"]),
   aiFoodAnalysisEnabled: z.boolean(),
+  activityAiEnabled: z.boolean(),
+  bodyWeightKg: z.coerce.number().min(25).max(350).nullable(),
+  defaultCaloriesView: z.enum(["today", "week", "month"]),
   requireAiConfirmation: z.boolean(),
 });
 
@@ -94,5 +138,5 @@ export const displaySettingsSchema = z.object({
 });
 
 export const taskSettingsSchema = z.object({ tasks: z.array(taskDefinitionSchema).min(1).max(20) });
-export const settingsExportSchema = z.object({ format: z.enum(["json", "csv"]), dataset: z.enum(["all", "tasks", "food", "lifecycle", "smoking"]).default("all") });
+export const settingsExportSchema = z.object({ format: z.enum(["json", "csv"]), dataset: z.enum(["all", "tasks", "food", "activities", "lifecycle", "smoking"]).default("all") });
 export const resetSettingsSchema = z.object({ confirmation: z.string() });
