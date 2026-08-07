@@ -22,6 +22,9 @@ export async function POST(request: NextRequest) {
     } else if (input.dataset === "food") {
       rows = [["date", "time", "meal", "meal_type", "confirmed_calories", "dessert", "confidence"], ...db.foodEntries.map((entry) => [entry.entryDate, entry.entryTime, entry.mealName, entry.mealType, entry.confirmedCalories, entry.isDessert, entry.confidence])];
       filename = "food-entries.csv";
+    } else if (input.dataset === "activities") {
+      rows = [["date", "time", "activity", "duration_minutes", "intensity", "confirmed_calories_burned", "source"], ...db.activityEntries.map((entry) => [entry.activityDate, entry.activityTime, entry.activityName, entry.durationMinutes, entry.intensity, entry.confirmedCaloriesBurned, entry.source])];
+      filename = "activity-entries.csv";
     } else if (input.dataset === "lifecycle") {
       rows = [["date", "source_type", "reason", "explore_world_delta", "relationship_delta", "family_delta", "reverted"], ...db.lifecycleEffects.map((effect) => [effect.effectDate, effect.sourceType, effect.reason, effect.worldDelta, effect.relationshipDelta, effect.familyDelta, effect.isReverted])];
       filename = "lifecycle-history.csv";

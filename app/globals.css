@@ -29,6 +29,14 @@ button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 ::selection { background: #c8ff3d; color: #07090b; }
 
+@keyframes life-impact {
+  0% { opacity: 0; transform: translateY(8px); }
+  12%, 72% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-6px); visibility: hidden; }
+}
+
+.life-impact { animation: life-impact 3.2s ease both; }
+
 @layer components {
   .page-wrap { @apply mx-auto w-full max-w-[1440px] px-4 pb-32 pt-4 md:px-8 md:pb-12 md:pt-8 xl:px-12; }
   .eyebrow { @apply font-display text-[11px] font-bold uppercase tracking-[0.19em] text-zinc-500; }

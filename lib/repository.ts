@@ -1,20 +1,22 @@
 import type {
-  DailyTaskRecord, FoodEntry, LifecycleAdjustment, LifecycleCategory, LifecycleEffect, LocalDatabase,
+  ActivityEntry, DailyTaskRecord, FoodEntry, LifecycleAdjustment, LifecycleCategory, LifecycleEffect, LocalDatabase,
   SmokingEntry, SystemSettings, TaskCarryover, TaskDefinition,
 } from "@/lib/types";
 import { ApiError } from "@/lib/api";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { readDatabase as readLocalDatabase, resetLocalDatabase, withDatabaseTransaction } from "@/lib/local-db";
 import {
-  adjustLifecycle, completeTask, createFood, createSmoking, deleteFood, deleteSmoking, resetLifecycleScores,
+  adjustLifecycle, completeTask, createActivity, createFood, createSmoking, deleteActivity, deleteFood, deleteSmoking, resetLifecycleScores,
   revertCarry, taskDayView, uncompleteTask, updateCalorieSettings, updateDisplaySettings, updateFood,
-  updateGeneralSettings, updateLifecycleRules, updateLifecycleScores, updateTaskDefinition, updateTaskDefinitions,
+  updateActivity, updateGeneralSettings, updateLifecycleRules, updateLifecycleScores, updateTaskDefinition, updateTaskDefinitions,
   updateTimelineSettings, carryTask,
 } from "@/lib/service";
 
 type Row = Record<string, unknown>;
 type FoodCreate = Omit<FoodEntry, "id" | "createdAt" | "updatedAt">;
 type FoodUpdate = Partial<FoodCreate> & { id: string };
+type ActivityCreate = Omit<ActivityEntry, "id" | "createdAt" | "updatedAt">;
+type ActivityUpdate = Pick<ActivityEntry, "id" | "activityDate" | "activityTime" | "activityName" | "durationMinutes" | "confirmedCaloriesBurned">;
 type TaskUpdate = Pick<TaskDefinition, "id" | "name" | "unit" | "baseTarget" | "displayOrder" | "isActive">;
 type LifecycleScores = Pick<SystemSettings, "exploreWorldScore" | "relationshipScore" | "familyScore"> & { reason: string };
 type LifecycleRules = Pick<SystemSettings,
@@ -38,6 +40,16 @@ function mapCarryover(row: Row): TaskCarryover {
 }
 function mapFood(row: Row): FoodEntry {
   return { id: String(row.id), entryDate: String(row.entry_date), entryTime: time(row.entry_time), mealName: String(row.meal_name), mealType: row.meal_type as FoodEntry["mealType"], confirmedCalories: number(row.confirmed_calories), aiEstimatedCalories: nullableNumber(row.ai_estimated_calories), minimumCalories: nullableNumber(row.minimum_calories), maximumCalories: nullableNumber(row.maximum_calories), foodItems: (row.food_items ?? []) as FoodEntry["foodItems"], isDessert: Boolean(row.is_dessert), confidence: (row.confidence ?? null) as FoodEntry["confidence"], assumptions: (row.assumptions ?? []) as string[], createdAt: String(row.created_at), updatedAt: String(row.updated_at) };
+}
+function mapActivity(row: Row): ActivityEntry {
+  return {
+    id: String(row.id), activityDate: String(row.activity_date), activityTime: time(row.activity_time), activityName: String(row.activity_name),
+    durationMinutes: number(row.duration_minutes), intensity: row.intensity as ActivityEntry["intensity"],
+    confirmedCaloriesBurned: number(row.confirmed_calories_burned), aiEstimatedCaloriesBurned: nullableNumber(row.ai_estimated_calories_burned),
+    minimumCaloriesBurned: nullableNumber(row.minimum_calories_burned), maximumCaloriesBurned: nullableNumber(row.maximum_calories_burned),
+    confidence: (row.confidence ?? null) as ActivityEntry["confidence"], assumptions: (row.assumptions ?? []) as string[], source: row.source as ActivityEntry["source"],
+    createdAt: String(row.created_at), updatedAt: String(row.updated_at),
+  };
 }
 function mapSmoking(row: Row): SmokingEntry {
   return { id: String(row.id), entryDate: String(row.entry_date), entryTime: time(row.entry_time), createdAt: String(row.created_at), updatedAt: String(row.updated_at) };
@@ -70,6 +82,7 @@ async function readSupabaseDatabase(): Promise<LocalDatabase> {
     client.from("daily_task_records").select("*"),
     client.from("task_carryovers").select("*"),
     client.from("food_entries").select("*"),
+    client.from("activity_entries").select("*"),
     client.from("smoking_entries").select("*"),
     client.from("lifecycle_effects").select("*"),
     client.from("lifecycle_adjustments").select("*"),
@@ -85,7 +98,8 @@ async function readSupabaseDatabase(): Promise<LocalDatabase> {
     exerciseWorldDelta: number(app.exercise_world_delta), exerciseRelationshipDelta: number(app.exercise_relationship_delta), exerciseFamilyDelta: number(app.exercise_family_delta),
     dessertWorldDelta: number(app.dessert_world_delta), dessertRelationshipDelta: number(app.dessert_relationship_delta), dessertFamilyDelta: number(app.dessert_family_delta),
     smokingWorldDelta: number(app.smoking_world_delta), smokingRelationshipDelta: number(app.smoking_relationship_delta), smokingFamilyDelta: number(app.smoking_family_delta),
-    defaultMealType: app.default_meal_type as SystemSettings["defaultMealType"], aiFoodAnalysisEnabled: Boolean(app.ai_food_analysis_enabled), requireAiConfirmation: Boolean(app.require_ai_confirmation),
+    defaultMealType: app.default_meal_type as SystemSettings["defaultMealType"], aiFoodAnalysisEnabled: Boolean(app.ai_food_analysis_enabled),
+    activityAiEnabled: Boolean(app.activity_ai_enabled), bodyWeightKg: nullableNumber(app.body_weight_kg), defaultCaloriesView: app.default_calories_view as SystemSettings["defaultCaloriesView"], requireAiConfirmation: Boolean(app.require_ai_confirmation),
     defaultLandingPage: app.default_landing_page as SystemSettings["defaultLandingPage"], desktopSidebarMode: app.desktop_sidebar_mode as SystemSettings["desktopSidebarMode"], mobileDateRange: number(app.mobile_date_range) as 5 | 7,
     createdAt, updatedAt,
   };
@@ -95,9 +109,10 @@ async function readSupabaseDatabase(): Promise<LocalDatabase> {
     dailyTaskRecords: ((results[3].data ?? []) as Row[]).map(mapTaskRecord),
     taskCarryovers: ((results[4].data ?? []) as Row[]).map(mapCarryover),
     foodEntries: ((results[5].data ?? []) as Row[]).map(mapFood),
-    smokingEntries: ((results[6].data ?? []) as Row[]).map(mapSmoking),
-    lifecycleEffects: ((results[7].data ?? []) as Row[]).map(mapEffect),
-    lifecycleAdjustments: ((results[8].data ?? []) as Row[]).map(mapAdjustment),
+    activityEntries: ((results[6].data ?? []) as Row[]).map(mapActivity),
+    smokingEntries: ((results[7].data ?? []) as Row[]).map(mapSmoking),
+    lifecycleEffects: ((results[8].data ?? []) as Row[]).map(mapEffect),
+    lifecycleAdjustments: ((results[9].data ?? []) as Row[]).map(mapAdjustment),
   };
 }
 
@@ -129,6 +144,30 @@ export async function updateFoodStored(input: FoodUpdate) {
 export async function deleteFoodStored(id: string) {
   if (!usesSupabase()) return withDatabaseTransaction((db) => deleteFood(db, id));
   return mapFood(resultRow(await rpc("delete_food_entry", { p_id: id })));
+}
+
+function activityParams(input: ActivityCreate) {
+  return {
+    p_activity_date: input.activityDate, p_activity_time: input.activityTime, p_activity_name: input.activityName,
+    p_duration_minutes: input.durationMinutes, p_intensity: input.intensity, p_confirmed_calories_burned: input.confirmedCaloriesBurned,
+    p_ai_estimated_calories_burned: input.aiEstimatedCaloriesBurned, p_minimum_calories_burned: input.minimumCaloriesBurned,
+    p_maximum_calories_burned: input.maximumCaloriesBurned, p_confidence: input.confidence, p_assumptions: input.assumptions, p_source: input.source,
+  };
+}
+export async function createActivityStored(input: ActivityCreate) {
+  if (!usesSupabase()) return withDatabaseTransaction((db) => createActivity(db, input));
+  return mapActivity(resultRow(await rpc("create_activity_entry", activityParams(input))));
+}
+export async function updateActivityStored(input: ActivityUpdate) {
+  if (!usesSupabase()) return withDatabaseTransaction((db) => updateActivity(db, input));
+  return mapActivity(resultRow(await rpc("update_activity_entry", {
+    p_id: input.id, p_activity_date: input.activityDate, p_activity_time: input.activityTime, p_activity_name: input.activityName,
+    p_duration_minutes: input.durationMinutes, p_confirmed_calories_burned: input.confirmedCaloriesBurned,
+  })));
+}
+export async function deleteActivityStored(id: string) {
+  if (!usesSupabase()) return withDatabaseTransaction((db) => deleteActivity(db, id));
+  return mapActivity(resultRow(await rpc("delete_activity_entry", { p_id: id })));
 }
 
 export async function createSmokingStored(input: Pick<SmokingEntry, "entryDate" | "entryTime"> & { requestId: string }) {
@@ -168,9 +207,9 @@ export async function updateLifecycleRulesStored(input: LifecycleRules) {
   await rpc("update_lifecycle_rules", { p_settings: input });
   return (await readSupabaseDatabase()).settings;
 }
-export async function updateCaloriesStored(input: Pick<SystemSettings, "defaultMealType" | "aiFoodAnalysisEnabled" | "requireAiConfirmation">) {
+export async function updateCaloriesStored(input: Pick<SystemSettings, "defaultMealType" | "aiFoodAnalysisEnabled" | "activityAiEnabled" | "bodyWeightKg" | "defaultCaloriesView" | "requireAiConfirmation">) {
   if (!usesSupabase()) return withDatabaseTransaction((db) => updateCalorieSettings(db, input));
-  await rpc("update_calorie_settings", { p_default_meal_type: input.defaultMealType, p_ai_enabled: input.aiFoodAnalysisEnabled, p_require_confirmation: input.requireAiConfirmation });
+  await rpc("update_calorie_settings", { p_default_meal_type: input.defaultMealType, p_ai_enabled: input.aiFoodAnalysisEnabled, p_activity_ai_enabled: input.activityAiEnabled, p_body_weight_kg: input.bodyWeightKg, p_default_calories_view: input.defaultCaloriesView, p_require_confirmation: input.requireAiConfirmation });
   return (await readSupabaseDatabase()).settings;
 }
 export async function updateDisplayStored(input: Pick<SystemSettings, "defaultLandingPage" | "desktopSidebarMode" | "mobileDateRange">) {

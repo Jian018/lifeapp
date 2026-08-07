@@ -32,7 +32,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         {!compact && <div className="mt-auto rounded-2xl border border-line bg-white/[.025] p-4">
-          <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-zinc-300"><Gauge size={15} className="text-acid" /> Local mode</div>
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-zinc-300"><Gauge size={15} className="text-acid" /> Protected datastore</div>
           <p className="text-[11px] leading-5 text-zinc-600">Private actions are protected. Public viewing stays open.</p>
         </div>}
       </aside>

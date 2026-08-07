@@ -15,8 +15,8 @@ import { useAppSettings } from "@/components/app-settings";
 type Dashboard = {
   today: string;
   tasks: { total: number; completed: number; pending: number; carried: number; completionRate: number };
-  lifecycle: { remainingDays: number; energized: number; stage: { emoji: string; label: string } };
-  calories: { total: number; meals: number; desserts: number };
+  lifecycle: { remainingDays: number; naturalDaysRemaining: number; effectiveDaysRemaining: number; energized: number; stage: { emoji: string; label: string } };
+  calories: { total: number; intake: number; burned: number; net: number; meals: number; desserts: number };
 };
 
 export default function HomePage() {
@@ -38,15 +38,15 @@ export default function HomePage() {
 
       <section className="mb-5 grid gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-3">
         <div className="bg-panel p-5 md:p-7"><p className="eyebrow">Tasks complete</p><div className="mt-3 flex items-end gap-2"><span className="metric">{data.tasks.completionRate}</span><span className="mb-1 text-xl font-semibold text-acid">%</span></div><p className="mt-2 text-xs text-zinc-500">{data.tasks.completed} of {data.tasks.total} movements</p></div>
-        <div className="bg-panel p-5 md:p-7"><p className="eyebrow">ENERGIZED</p><div className="mt-3 flex items-end gap-3"><span className="metric">{data.lifecycle.energized}%</span><span className="mb-1 text-3xl">{data.lifecycle.stage.emoji}</span></div><p className="mt-2 text-xs text-zinc-500">{data.lifecycle.stage.label} · {data.lifecycle.remainingDays.toLocaleString()} days remain</p></div>
-        <div className="bg-panel p-5 md:p-7"><p className="eyebrow">Intake today</p><div className="mt-3 flex items-end gap-2"><span className="metric">{data.calories.total.toLocaleString()}</span><span className="mb-1 text-sm font-semibold text-sky">kcal</span></div><p className="mt-2 text-xs text-zinc-500">{data.calories.meals} meals · {data.calories.desserts} sweet treats</p></div>
+        <div className="bg-panel p-5 md:p-7"><p className="eyebrow">ENERGIZED</p><div className="mt-3 flex items-end gap-3"><span className="metric">{data.lifecycle.energized}%</span><span className="mb-1 text-3xl">{data.lifecycle.stage.emoji}</span></div><p className="mt-2 text-xs text-zinc-500">Natural {data.lifecycle.naturalDaysRemaining.toLocaleString()} · Effective <span className="text-acid">{data.lifecycle.effectiveDaysRemaining.toLocaleString()}</span> days</p></div>
+        <Link href={`/calories?date=${data.today}`} className="bg-panel p-5 transition-colors hover:bg-white/[.025] md:p-7"><p className="eyebrow">Calories today</p><div className="mt-4 grid grid-cols-2 gap-4"><div><p className="text-[10px] uppercase tracking-[.12em] text-zinc-600">Intake</p><p className="mt-1 font-display text-2xl font-bold">{data.calories.intake.toLocaleString()}</p></div><div><p className="text-[10px] uppercase tracking-[.12em] text-zinc-600">Burned</p><p className="mt-1 font-display text-2xl font-bold text-sky">{data.calories.burned.toLocaleString()}</p></div></div><p className="mt-4 text-xs text-zinc-500">Net <span className="font-semibold text-white">{data.calories.net.toLocaleString()} kcal</span> · open details</p></Link>
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">
         {[
           { key: "tasks", href: "/tasks", label: text("Movement", "运动"), title: text("Today’s Tasks", "今日任务"), description: text("Finish the foundations. Carry what matters, never lose the thread.", "完成基础运动，把未完成目标延续到明天。"), icon: CalendarCheck, accent: "acid" },
           { key: "lifecycle", href: "/lifecycle", label: text("Direction", "方向"), title: text("Lifecycle", "生命周期"), description: text("See time clearly and keep three life directions in honest balance.", "看清时间，并管理三个真实的生活方向。"), icon: HeartPulse, accent: "coral" },
-          { key: "calories", href: "/calories", label: text("Intake", "摄取"), title: text("Calorie Log", "卡路里记录"), description: text("Capture meals, review estimates and understand your intake patterns.", "记录餐点、检查估算并了解摄取趋势。"), icon: Flame, accent: "sky" },
+          { key: "calories", href: `/calories?date=${data.today}`, label: text("Intake & Burn", "摄取与消耗"), title: text("Calorie Log", "卡路里记录"), description: text("Track intake, completed activity burn and net calories by date.", "按日期记录摄取、运动消耗与净卡路里。"), icon: Flame, accent: "sky" },
         ].map(({ key, href, label, title, description, icon: Icon, accent }, index) => {
           const accentClass = accent === "acid" ? "text-acid bg-acid/10" : accent === "coral" ? "text-coral bg-coral/10" : "text-sky bg-sky/10";
           const stat = key === "tasks" ? `${data.tasks.pending} OPEN` : key === "lifecycle" ? `${data.lifecycle.energized}%` : `${data.calories.meals} LOGGED`;

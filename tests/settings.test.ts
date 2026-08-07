@@ -46,9 +46,9 @@ describe("persistent app settings", () => {
 
   it("persists calorie and display settings", () => {
     const db = createDefaultDatabase();
-    updateCalorieSettings(db, { defaultMealType: "dinner", aiFoodAnalysisEnabled: false, requireAiConfirmation: false });
+    updateCalorieSettings(db, { defaultMealType: "dinner", aiFoodAnalysisEnabled: false, activityAiEnabled: false, bodyWeightKg: 70, defaultCaloriesView: "week", requireAiConfirmation: false });
     updateDisplaySettings(db, { defaultLandingPage: "/lifecycle", desktopSidebarMode: "compact", mobileDateRange: 5 });
-    expect(db.settings).toMatchObject({ defaultMealType: "dinner", aiFoodAnalysisEnabled: false, requireAiConfirmation: false, defaultLandingPage: "/lifecycle", desktopSidebarMode: "compact", mobileDateRange: 5 });
+    expect(db.settings).toMatchObject({ defaultMealType: "dinner", aiFoodAnalysisEnabled: false, activityAiEnabled: false, bodyWeightKg: 70, defaultCaloriesView: "week", requireAiConfirmation: false, defaultLandingPage: "/lifecycle", desktopSidebarMode: "compact", mobileDateRange: 5 });
   });
 
   it("resets only Lifecycle scores and keeps business history", () => {

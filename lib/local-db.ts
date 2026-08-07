@@ -9,7 +9,7 @@ const DATA_FILE = path.join(DATA_DIR, "local-db.json");
 let transactionQueue: Promise<unknown> = Promise.resolve();
 
 const nowIso = () => new Date().toISOString();
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 function task(id: string, taskKey: string, name: string, unit: string, baseTarget: number, displayOrder: number): TaskDefinition {
   const now = nowIso();
@@ -27,7 +27,7 @@ export function createDefaultDatabase(today = singaporeDate()): LocalDatabase {
     task("task_running", "running", "Running", "minutes", 15, 1),
     task("task_pushup", "push_up", "Push-up", "reps", 20, 2),
     task("task_situp", "sit_up", "Sit-up", "reps", 20, 3),
-    task("task_plank", "plank", "Plank", "seconds", 3, 4),
+    task("task_plank", "plank", "Plank", "seconds", 30, 4),
   ];
   const yesterday = addDays(today, -1);
   const dailyTaskRecords = taskDefinitions.map((definition, index) => ({
@@ -67,6 +67,9 @@ export function createDefaultDatabase(today = singaporeDate()): LocalDatabase {
       smokingFamilyDelta: -1,
       defaultMealType: "auto",
       aiFoodAnalysisEnabled: true,
+      activityAiEnabled: true,
+      bodyWeightKg: null,
+      defaultCaloriesView: "today",
       requireAiConfirmation: true,
       defaultLandingPage: "/",
       desktopSidebarMode: "expanded",
@@ -76,7 +79,7 @@ export function createDefaultDatabase(today = singaporeDate()): LocalDatabase {
     },
     taskDefinitions,
     dailyTaskRecords,
-    taskCarryovers: [{ id: `carry_seed_${today}`, taskDefinitionId: "task_plank", sourceRecordId: `seed_task_plank_${yesterday}`, sourceDate: yesterday, targetDate: today, amount: 3, isReverted: false, createdAt: now, revertedAt: null }],
+    taskCarryovers: [{ id: `carry_seed_${today}`, taskDefinitionId: "task_plank", sourceRecordId: `seed_task_plank_${yesterday}`, sourceDate: yesterday, targetDate: today, amount: 30, isReverted: false, createdAt: now, revertedAt: null }],
     foodEntries: [
       sampleFood("food_seed_1", addDays(today, -1), "08:10", "Greek yogurt & berries", "breakfast", 340),
       sampleFood("food_seed_2", addDays(today, -1), "13:05", "Chicken rice bowl", "lunch", 680),
@@ -85,6 +88,7 @@ export function createDefaultDatabase(today = singaporeDate()): LocalDatabase {
       sampleFood("food_seed_5", addDays(today, -4), "08:00", "Eggs on sourdough", "breakfast", 430),
       sampleFood("food_seed_6", addDays(today, -5), "19:10", "Tofu grain bowl", "dinner", 560),
     ],
+    activityEntries: [],
     smokingEntries: [],
     lifecycleEffects: [],
     lifecycleAdjustments: [],
@@ -98,6 +102,7 @@ function upgradeDatabase(input: LocalDatabase & { schemaVersion?: number; settin
   delete legacySettings.worldScore;
   const activeEffects = (input.lifecycleEffects ?? []).filter((effect) => !effect.isReverted);
   const scoreFromHistory = (field: "worldDelta" | "relationshipDelta" | "familyDelta") => clamp(33 + activeEffects.reduce((sum, effect) => sum + effect[field], 0));
+  const sourceVersion = input.schemaVersion ?? 1;
   const db: LocalDatabase = {
     ...defaults,
     ...input,
@@ -105,13 +110,15 @@ function upgradeDatabase(input: LocalDatabase & { schemaVersion?: number; settin
     settings: {
       ...defaults.settings,
       ...legacySettings,
-      exploreWorldScore: scoreFromHistory("worldDelta"),
-      relationshipScore: scoreFromHistory("relationshipDelta"),
-      familyScore: scoreFromHistory("familyDelta"),
-      targetAge: 60,
-      targetDate: "2063-01-08",
+      exploreWorldScore: sourceVersion < 2 ? scoreFromHistory("worldDelta") : input.settings.exploreWorldScore,
+      relationshipScore: sourceVersion < 2 ? scoreFromHistory("relationshipDelta") : input.settings.relationshipScore,
+      familyScore: sourceVersion < 2 ? scoreFromHistory("familyDelta") : input.settings.familyScore,
+      targetAge: sourceVersion < 2 ? 60 : input.settings.targetAge,
+      targetDate: sourceVersion < 2 ? "2063-01-08" : input.settings.targetDate,
       updatedAt: nowIso(),
     } as LocalDatabase["settings"],
+    taskDefinitions: (input.taskDefinitions ?? defaults.taskDefinitions).map((definition) => definition.taskKey === "plank" ? { ...definition, baseTarget: 30, updatedAt: nowIso() } : definition),
+    activityEntries: input.activityEntries ?? [],
     lifecycleAdjustments: (input.lifecycleAdjustments ?? []).map((adjustment) => ({ ...adjustment, category: adjustment.category === ("world" as typeof adjustment.category) ? "explore_world" : adjustment.category })),
   };
   return { db, changed: true };
