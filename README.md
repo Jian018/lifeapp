@@ -138,9 +138,13 @@ POST   /api/tasks/carry
 POST   /api/tasks/revert-carry
 PATCH  /api/tasks/definition
 POST   /api/analyze-food
+POST   /api/analyze-activity
 POST   /api/food/create
 PATCH  /api/food/update
 DELETE /api/food/delete
+POST   /api/activities/create
+PATCH  /api/activities/:id
+DELETE /api/activities/:id
 POST   /api/smoking/create
 DELETE /api/smoking/delete
 POST   /api/lifecycle/adjust
@@ -159,7 +163,7 @@ POST   /api/settings/reset-all
 
 Images exist only in browser memory and in one request to `/api/analyze-food`. The browser compresses the image before sending it, the API validates a structured result, and the image is discarded. There is no image, URL or Base64 field in the local datastore or Supabase schema. The service worker excludes all `/api/*` requests.
 
-With no `OPENAI_API_KEY`, localhost returns a clearly labelled demo analysis so the review and save flow remains testable. To use live analysis later, set server-only values and restart:
+With no `OPENAI_API_KEY`, the AI endpoints return a clear unavailable response and the UI offers manual entry. No fabricated estimate is shown or saved. To use live analysis, set server-only values and restart:
 
 ```env
 OPENAI_API_KEY=your-server-side-key
