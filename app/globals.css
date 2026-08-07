@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; }
+
+html {
+  background: #07090b;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 75% -15%, rgba(200, 255, 61, .08), transparent 34rem),
+    #07090b;
+  color: #f7f7f5;
+  font-family: var(--font-inter), Arial, sans-serif;
+}
+
+button, input, select, textarea { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+::selection { background: #c8ff3d; color: #07090b; }
+
+@layer components {
+  .page-wrap { @apply mx-auto w-full max-w-[1440px] px-4 pb-32 pt-4 md:px-8 md:pb-12 md:pt-8 xl:px-12; }
+  .eyebrow { @apply font-display text-[11px] font-bold uppercase tracking-[0.19em] text-zinc-500; }
+  .display-title { @apply font-display text-3xl font-bold tracking-[-0.04em] text-white md:text-5xl; }
+  .panel { @apply rounded-2xl border border-line bg-panel shadow-card; }
+  .metric { @apply font-display text-4xl font-bold tracking-[-0.06em] text-white md:text-5xl; }
+  .touch-target { @apply min-h-11; }
+  .scrollbar-none { scrollbar-width: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+}
+
+@media (max-width: 767px) {
+  .desktop-only { display: none !important; }
+}
+
+@media (min-width: 768px) {
+  .mobile-only { display: none !important; }
+}
