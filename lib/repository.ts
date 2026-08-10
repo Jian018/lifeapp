@@ -39,7 +39,7 @@ function mapCarryover(row: Row): TaskCarryover {
   return { id: String(row.id), taskDefinitionId: String(row.task_definition_id), sourceRecordId: String(row.source_record_id), sourceDate: String(row.source_date), targetDate: String(row.target_date), amount: number(row.amount), isReverted: Boolean(row.is_reverted), createdAt: String(row.created_at), revertedAt: row.reverted_at ? String(row.reverted_at) : null };
 }
 function mapFood(row: Row): FoodEntry {
-  return { id: String(row.id), entryDate: String(row.entry_date), entryTime: time(row.entry_time), mealName: String(row.meal_name), mealType: row.meal_type as FoodEntry["mealType"], confirmedCalories: number(row.confirmed_calories), aiEstimatedCalories: nullableNumber(row.ai_estimated_calories), minimumCalories: nullableNumber(row.minimum_calories), maximumCalories: nullableNumber(row.maximum_calories), foodItems: (row.food_items ?? []) as FoodEntry["foodItems"], isDessert: Boolean(row.is_dessert), confidence: (row.confidence ?? null) as FoodEntry["confidence"], assumptions: (row.assumptions ?? []) as string[], createdAt: String(row.created_at), updatedAt: String(row.updated_at) };
+  return { id: String(row.id), entryDate: String(row.entry_date), entryTime: time(row.entry_time), mealName: String(row.meal_name), mealType: row.meal_type as FoodEntry["mealType"], confirmedCalories: number(row.confirmed_calories), aiEstimatedCalories: nullableNumber(row.ai_estimated_calories), minimumCalories: nullableNumber(row.minimum_calories), maximumCalories: nullableNumber(row.maximum_calories), foodItems: (row.food_items ?? []) as FoodEntry["foodItems"], isDessert: Boolean(row.is_dessert), confidence: (row.confidence ?? null) as FoodEntry["confidence"], assumptions: (row.assumptions ?? []) as string[], photoDescription: String(row.photo_description ?? ""), quantity: number(row.quantity ?? 1), createdAt: String(row.created_at), updatedAt: String(row.updated_at) };
 }
 function mapActivity(row: Row): ActivityEntry {
   return {
@@ -128,7 +128,7 @@ export async function carryTaskStored(taskDefinitionId: string, date: string) { 
 export async function revertCarryStored(taskDefinitionId: string, date: string) { return usesSupabase() ? taskResult("revert_daily_task_carry", taskDefinitionId, date) : withDatabaseTransaction((db) => revertCarry(db, taskDefinitionId, date)); }
 
 function foodParams(input: FoodCreate) {
-  return { p_entry_date: input.entryDate, p_entry_time: input.entryTime, p_meal_name: input.mealName, p_meal_type: input.mealType, p_confirmed_calories: input.confirmedCalories, p_ai_estimated_calories: input.aiEstimatedCalories, p_minimum_calories: input.minimumCalories, p_maximum_calories: input.maximumCalories, p_food_items: input.foodItems, p_is_dessert: input.isDessert, p_confidence: input.confidence, p_assumptions: input.assumptions };
+  return { p_entry_date: input.entryDate, p_entry_time: input.entryTime, p_meal_name: input.mealName, p_meal_type: input.mealType, p_confirmed_calories: input.confirmedCalories, p_ai_estimated_calories: input.aiEstimatedCalories, p_minimum_calories: input.minimumCalories, p_maximum_calories: input.maximumCalories, p_food_items: input.foodItems, p_is_dessert: input.isDessert, p_confidence: input.confidence, p_assumptions: input.assumptions, p_photo_description: input.photoDescription ?? "", p_quantity: input.quantity ?? 1 };
 }
 export async function createFoodStored(input: FoodCreate) {
   if (!usesSupabase()) return withDatabaseTransaction((db) => createFood(db, input));

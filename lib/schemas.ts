@@ -13,7 +13,8 @@ export const foodItemSchema = z.object({
 
 export const foodAnalysisSchema = z.object({
   meal_name: z.string().min(1).max(140),
-  foods: z.array(foodItemSchema).min(1).max(20),
+  // One photo analysis is deliberately one logged food, even if other dishes are visible.
+  foods: z.array(foodItemSchema).length(1),
   total_estimated_calories: z.number().min(0).max(30_000),
   minimum_estimated_calories: z.number().min(0).max(30_000),
   maximum_estimated_calories: z.number().min(0).max(30_000),
@@ -37,6 +38,8 @@ export const foodEntrySchema = z.object({
   isDessert: z.boolean(),
   confidence: z.enum(["low", "medium", "high"]).nullable().optional(),
   assumptions: z.array(z.string().max(240)).max(10).default([]),
+  photoDescription: z.string().trim().max(500).default(""),
+  quantity: z.coerce.number().int().min(1).max(1_000).default(1),
 });
 
 export const foodUpdateSchema = foodEntrySchema.partial().extend({ id: idSchema });

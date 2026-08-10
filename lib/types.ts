@@ -80,6 +80,10 @@ export type FoodEntry = {
   isDessert: boolean;
   confidence: Confidence | null;
   assumptions: string[];
+  /** Optional context supplied with a food photo. Older records omit this. */
+  photoDescription?: string;
+  /** Number of the single food item consumed; older records are treated as 1. */
+  quantity?: number;
   createdAt: string;
   updatedAt: string;
 };
